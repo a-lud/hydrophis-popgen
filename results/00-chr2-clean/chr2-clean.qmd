@@ -23,6 +23,9 @@ To test the chromosome integrity, we used the PacBio Hifi per-base coverage file
 sequence coverage over the chromosome (generated in Ludington et al. 2023).
 
 ```{r chr2-coverage-h_major}
+#| fig-width: 8
+#| fig-height: 5
+#| dpi: 150
 #| warning: FALSE
 df_mask <- read_csv(
   here("results", "05-v2r", "hifi-coverage", "mask-regions.csv"),
