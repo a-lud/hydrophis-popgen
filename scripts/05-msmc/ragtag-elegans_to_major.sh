@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-core=2
 #SBATCH --time=08:00:00
 #SBATCH --mem=80GB
-#SBATCH -o /home/a1645424/hpcfs/analysis/popgen/scripts/joblogs/%x_%j.log
+#SBATCH -o /home/${USER}/hpcfs/analysis/popgen/scripts/joblogs/%x_%j.log
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=alastair.ludington@adelaide.edu.au
 
