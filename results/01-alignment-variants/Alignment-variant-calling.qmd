@@ -224,7 +224,7 @@ Below is a simple bar-plot of the tables above showing the loss in data after fi
 
 ```{r}
 #| fig-width: 8
-#| fig-height: 5
+#| fig-height: 8
 #| dpi: 150
 pal <- c('#252B48', '#44506980', '#5B9A8B', '#F7E987')
 figure_reads <- common_ref_stats |>
@@ -250,7 +250,7 @@ figure_reads <- common_ref_stats |>
         axis.text.y = element_text(size = 16),
         axis.title.y = element_text(size = 18),
         legend.position = "inside",
-        legend.position.inside = c(0.19, 0.88),
+        legend.position.inside = c(0.21, 0.88),
         legend.title = element_text(size = 18),
         legend.text = element_text(size = 16)
     )

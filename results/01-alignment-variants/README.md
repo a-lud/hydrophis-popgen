@@ -163,7 +163,7 @@ ref_matched_stats |>
     gt::as_raw_html()
 ```
 
-<div id="ddesrznxok" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="sepzucvxbf" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
   &#10;  
 
 |  | Reads raw | Reads QC | Reads QC (%) | Aligned reads pre-filter | Aligned reads pre-filter (%) | Aligned reads post-filter | Aligned reads post-filter (%) | Mean coverage |
@@ -238,7 +238,7 @@ common_ref_stats |>
     gt::as_raw_html()
 ```
 
-<div id="ybxzputofi" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="kqvtvjhwrs" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
   &#10;  
 
 |  | Reads raw | Reads QC | Reads QC (%) | Aligned reads pre-filter | Aligned reads pre-filter (%) | Aligned reads post-filter | Aligned reads post-filter (%) | Mean coverage |
@@ -292,7 +292,7 @@ figure_reads <- common_ref_stats |>
         axis.text.y = element_text(size = 16),
         axis.title.y = element_text(size = 18),
         legend.position = "inside",
-        legend.position.inside = c(0.19, 0.88),
+        legend.position.inside = c(0.21, 0.88),
         legend.title = element_text(size = 18),
         legend.text = element_text(size = 16)
     )
@@ -474,7 +474,7 @@ called_sites |>
     gt::as_raw_html()
 ```
 
-<div id="odlqxfgygl" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="sgeqdbhyvp" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
   &#10;  
 
 |  | Length | HMA | HEL | HCU | MGR | HCU-HEL | HCU-HMA | HEL-HMA | HCU-HEL-HMA | HCU-HEL-HMA-MGR | HCU-HEL-HMA-MGR-biallelic |
@@ -549,7 +549,7 @@ snps |>
     gt::as_raw_html()
 ```
 
-<div id="mchbzwhcle" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="fjshzaonno" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
   &#10;  
 
 |  | HMA | HEL | HCU | MGR | HCU-HEL | HCU-HMA | HEL-HMA | HCU-HEL-HMA | HCU-HEL-HMA-MGR | HCU-HEL-HMA-MGR-biallelic |
