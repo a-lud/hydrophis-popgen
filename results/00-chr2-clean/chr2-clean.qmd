@@ -1,0 +1,92 @@
+---
+title: "H. major: chromosome 2 integrity"
+format: 
+    gfm:
+        output-file: README.md
+---
+
+```{r libraries}
+#| warning: FALSE
+suppressPackageStartupMessages({
+    library(tidyverse)
+    library(fs)
+    library(here)
+})
+```
+
+Before doing any analyses, we wanted to check the structural variation at the start
+of chromosome 2 (Ludington et al. 2023). Comparing chromosome 2 synteny between
+*Hydrophis* snakes illustrated that there were many rearrangements in this region.
+For genome scans, it's important that we have reliable regions of the genome to examine.
+
+To test the chromosome integrity, we used the PacBio Hifi per-base coverage files to examine
+sequence coverage over the chromosome (generated in Ludington et al. 2023).
+
+```{r chr2-coverage-h_major}
+#| warning: FALSE
+df_mask <- read_csv(
+  here("results", "05-v2r", "hifi-coverage", "mask-regions.csv"),
+  col_types = cols()
+) |>
+  mutate(width = xmax - xmin)
+
+chr2_cov <- read_tsv(
+  here("results", "05-v2r", "hifi-coverage", "hydmaj-p_ctg-v1.per-base.bed.gz"),
+  col_names = c("chrom", "start", "end", "cov"),
+  col_types = cols()
+) |>
+  filter(chrom == "chr2")
+
+med_cov <- median(chr2_cov$cov)
+hap_cov <- med_cov/2
+
+chr2_cov <- chr2_cov |>
+  mutate(line_col = ifelse(cov <= 16, "haploid", "diploid"))
+
+# '#ef233c'
+# '#0077b6'
+
+plot_chr2_cov <- chr2_cov |>
+  ggplot(aes(x = start, y = cov, colour = line_col)) +
+  geom_line() +
+  geom_rect(
+    data = df_mask,
+    aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = Inf),
+    inherit.aes = FALSE,
+    alpha = 0.3
+  ) +
+  geom_hline(
+    yintercept = c(med_cov, hap_cov), 
+    linewidth = 1, 
+    linetype = c("dashed", "solid")
+  ) +
+  scale_x_continuous(
+    limits = c(0, 100e6),
+    breaks = scales::pretty_breaks(n = 10),
+    labels = scales::label_number(scale = 1e-6, suffix = "Mb"),
+    name = "Chromosome 2",
+    expand = c(0,0)
+  ) +
+  scale_y_continuous(
+    limits = c(0, 100),
+    breaks = scales::pretty_breaks(n = 10),
+    name = "Per-base coverage",
+    expand = c(0,0)
+  ) +
+    scale_colour_manual(values = c("#ef233c", "#0077b6")) +
+  theme_linedraw() +
+  theme(
+    panel.grid.minor = element_blank()
+  )
+plot_chr2_cov
+```
+
+From the first 100Mb, we can see many stretches where the coverage drops to haploid
+levels. V2Rs exist in this region, and on the Z-chromosome, so there's potential
+misassembly. Alternatively, this is a difficult to assembly region and sections
+may be over-assembled/under assembled.
+
+I manually made a `mask` file that corresponds to these haploid, low coverage
+regions (these are the grey regions inthe figure above). Any statistics estimated
+in these regions will be removed before any aggregating, averaging, plotting
+or analysis.
