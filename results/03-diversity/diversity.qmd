@@ -1,0 +1,2134 @@
+---
+title: "Diversity statistics"
+author: "Alastair Ludington"
+date: "`r Sys.Date()`"
+format: 
+    gfm:
+        output-file: README.md
+        toc: true
+---
+
+```{r setup, include=FALSE}
+#| include: FALSE
+#| warnings: FALSE
+
+knitr::opts_chunk$set(
+    echo = TRUE,
+    include = TRUE,
+    eval = TRUE,
+    warning = FALSE,
+    message = FALSE,
+    error = FALSE,
+    out.width = "100%",
+    fig.height = 12,
+    fig.width = 12
+)
+
+suppressPackageStartupMessages({
+    library(tidyverse)
+    library(fs)
+    library(gt)
+    library(here)
+    library(patchwork)
+    library(ggthemes)
+    library(ggtext)
+})
+
+# Set theme of figures
+theme_set(theme_classic())
+
+lvls <- c("HMA", "HCU", "HEL")
+
+pal_within <- c("HMA" = "#fca311", "HCU" = "#59A14FFF", "HEL" = "#4E79A7FF") #"#9E9AC8"
+pal_within_long <- c(
+    "H. major" = "#fca311",
+    "H. curtus" = "#59A14FFF",
+    "H. elegans" = "#4E79A7FF"
+) #"#9E9AC8"
+
+# "#C9BC26" ,"#B45FA3", "#2CA6A4"
+pal_between <- c(
+    "HCU-HEL" = "#A6BE3A",
+    "HCU-HMA" = "#D26772",
+    "HEL-HMA" = "#3A9FBF"
+)
+pal_between_long <- c(
+    "H. curtus - H. elegans" = "#A6BE3A",
+    "H. curtus - H. major" = "#D26772",
+    "H. elegans - H. major" = "#3A9FBF"
+)
+
+# Backup between colour palette - much different, but distinguishable
+# "#48514B", "#E18222", "#1D4E0890"
+
+# Plotting function
+source(here("results", "03-diversity", "helper-functions.R"))
+
+# Given a wide-format dataframe where species names are in the column headers,
+# subset the data for a particular set of species
+subset_for_comp_species <- function(d, comparison) {
+    # decompose comparison into species
+    species <- str_split_1(comparison, pattern = "-")
+    
+    # Subset and convert to long-form
+    d |>
+        select(
+            chromosome,
+            window_pos_1,
+            window_pos_2,
+            contains(comparison),
+            starts_with(species)
+        ) |>
+        filter(!if_any(everything(), is.na)) |>
+        pivot_longer(names_to = "species", values_to = "pi", contains("_pi")) |>
+        rename(
+            fst = glue::glue("avg_wc_fst_{comparison}"),
+            dxy = glue::glue("avg_dxy_{comparison}"),
+        ) |>
+        mutate(
+            "comparison" = comparison,
+            species = str_remove(species, "_pi"),
+            species = factor(species, levels = lvls),
+            .before = chromosome
+        )
+}
+
+plot_div_pi_scatter <- function(
+        d,
+        stat = NULL,
+        blank_x = FALSE,
+        blank_y = FALSE,
+        alpha = 0.4,
+        shp = 1,
+        n_breaks = 5,
+        pal = NULL
+) {
+    if (is.null(stat)) {
+        stop("Choose 'fst' or 'dxy'")
+    }
+    
+    if (is.null(pal)) {
+        stop("Provide palette")
+    }
+    
+    p_scatter <- d |>
+        ggplot(aes(x = pi, y = .data[[stat]], colour = species)) +
+        geom_point(alpha = alpha, shape = shp, show.legend = FALSE) +
+        scale_colour_manual(values = pal) +
+        geom_smooth(
+            mapping = aes(colour = species),
+            method = 'lm',
+            show.legend = FALSE
+        ) +
+        ggpubr::stat_cor(
+            method = "spearman",
+            digits = 3,
+            label.x.npc = "middle",
+            label.y.npc = 0.9,
+            p.accuracy = 0.001,
+            show.legend = FALSE,
+            cor.coef.name = "rho",
+            size = 4
+        ) +
+        scale_x_continuous(
+            limits = c(0, 0.01),
+            breaks = scales::breaks_pretty(n = n_breaks),
+            labels = scales::label_number(drop0trailing = TRUE)
+        )
+    
+    if (stat == "fst") {
+        p_scatter <- p_scatter +
+            scale_y_continuous(
+                limits = c(0, 1),
+                breaks = scales::breaks_pretty(n = min(n_breaks, 5)),
+                labels = scales::label_number(drop0trailing = TRUE)
+            ) +
+            labs(y = bquote(italic(F[ST])))
+    } else {
+        p_scatter <- p_scatter +
+            scale_y_continuous(
+                limits = c(0, 0.014),
+                breaks = scales::breaks_pretty(n = n_breaks),
+                labels = scales::label_number(drop0trailing = TRUE)
+            ) +
+            labs(y = bquote(italic(d[XY])))
+    }
+    
+    p_scatter <- p_scatter +
+        labs(
+            x = "π"
+        ) +
+        theme(
+            strip.background = element_blank(),
+            strip.text = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(),
+            axis.text = element_text(size = 12),
+            axis.title = element_text(size = 14)
+        )
+    
+    if (blank_x) {
+        p_scatter <- p_scatter +
+            theme(
+                axis.title.x = element_blank(),
+                axis.ticks.x = element_blank(),
+                axis.text.x = element_blank()
+            )
+    }
+    
+    if (blank_y) {
+        p_scatter <- p_scatter +
+            theme(
+                axis.title.y = element_blank(),
+                axis.ticks.y = element_blank(),
+                axis.text.y = element_blank()
+            )
+    }
+    
+    p_dens <- d |>
+        ggplot() +
+        geom_density(
+            mapping = aes(x = pi, y = after_stat(scaled), colour = species),
+            linewidth = 0.8,
+            show.legend = FALSE
+        ) +
+        scale_colour_manual(values = pal) +
+        scale_x_continuous(
+            breaks = scales::breaks_pretty(n = n_breaks),
+            labels = scales::label_number(drop0trailing = TRUE)
+        ) +
+        scale_y_continuous(
+            limits = c(0, 1),
+            breaks = c(0, 1),
+            labels = c("0", "1")
+        ) +
+        labs(x = "π") +
+        theme_void()
+    
+    if (!blank_y) {
+        p_dens <- p_dens +
+            theme(
+                axis.text.y = element_text(size = 12)
+            )
+    }
+    
+    list("scatter" = p_scatter, "density" = p_dens)
+}
+
+plot_fst_dxy_within <- function(
+        d,
+        blank_x = FALSE,
+        blank_y = FALSE,
+        alpha = 0.4,
+        shp = 1,
+        n_breaks = 5,
+        pal = NULL
+) {
+    p_dxy_fst <- d |>
+        ggplot(aes(x = avg_dxy, y = avg_wc_fst)) +
+        geom_point(
+            alpha = alpha,
+            shape = shp,
+            colour = "grey80",
+            show.legend = FALSE
+        ) +
+        geom_smooth(
+            method = 'lm',
+            show.legend = FALSE,
+            colour = "black"
+        ) +
+        ggpubr::stat_cor(
+            method = "spearman",
+            digits = 3,
+            label.x.npc = "middle",
+            label.y.npc = 0.9,
+            p.accuracy = 0.001,
+            show.legend = FALSE,
+            cor.coef.name = "rho",
+            size = 4
+        ) +
+        scale_x_continuous(
+            limits = c(0, 0.015),
+            breaks = scales::breaks_pretty(n = n_breaks),
+            labels = scales::label_number(drop0trailing = TRUE)
+        ) +
+        scale_y_continuous(
+            limits = c(0, 1),
+            breaks = scales::breaks_pretty(n = min(n_breaks, 5)),
+            labels = scales::label_number(drop0trailing = TRUE)
+        ) +
+        labs(
+            x = bquote(italic(d[XY])),
+            y = bquote(italic(F[ST]))
+        ) +
+        theme(
+            strip.background = element_blank(),
+            strip.text = element_blank(),
+            axis.text = element_text(size = 12),
+            axis.title = element_text(size = 14)
+        )
+    
+    if (blank_x) {
+        p_dxy_fst <- p_dxy_fst +
+            theme(
+                axis.title.x = element_blank(),
+                axis.ticks.x = element_blank(),
+                axis.text.x = element_blank()
+            )
+    }
+    
+    if (blank_y) {
+        p_dxy_fst <- p_dxy_fst +
+            theme(
+                axis.title.y = element_blank(),
+                axis.ticks.y = element_blank(),
+                axis.text.y = element_blank()
+            )
+    }
+    
+    return(p_dxy_fst)
+}
+```
+
+Windowed π, F~ST~ and d~XY~ were calculated using the program Pixy using the
+*H. major* aligned sequence data. Briefly, samples were joint genotyped using
+`bcftools`, before per-sample filters were applied to each individual sample at
+each site:
+
+- Depth $\geq$ 10 and $\leq$ 2x the sample's genome-wide average
+- Allelic balance $\geq$ 0.2 and $\leq$ 0.8
+
+Any sites that failed to meet these requirements were set to missing (`./.`).
+Each variant site was then filtered on `F_MISSING` $\leq$ 0.2 within each population
+and across both populations. I.e. at most one missing individual per-site within
+species, and two missing individuals per-site across both species.
+
+I've also identified misassembled regions at the start of chromosome 2 that are likely
+chromosome Z. As such, we load the mask file below and remove any windows that overlap
+the problematic regions of chromosome 2.
+
+```{r mask-regions-chr2}
+gr_mask <- read_csv(
+    here("results", "05-v2r", "hifi-coverage", "mask-regions.csv"),
+    col_types = cols()
+) |>
+    select(chrom, start = xmin, end = xmax) |>
+    mutate(chrom = as.integer(str_remove(chrom, "chr"))) |>
+    GenomicRanges::makeGRangesFromDataFrame()
+```
+
+Next we load the divergence statistics. 
+
+```{r load-datasets}
+df_fst <- dir_ls(
+    path = here("results", "03-diversity", "between"),
+    glob = "*100kb_fst.txt"
+) |>
+    read_tsv(col_types = cols()) |>
+    mutate(
+        comparison = paste(pop1, pop2, sep = '-'),
+        chromosome = as.numeric(str_remove(chromosome, 'chr')),
+        chromosome = factor(chromosome, levels = 1:15),
+        .before = pop1
+    ) |>
+    filter(!is.na(avg_wc_fst)) |>
+    arrange(comparison, chromosome, window_pos_1)
+
+df_dxy <- dir_ls(
+    path = here("results", "03-diversity", "between"),
+    glob = "*100kb_dxy.txt"
+) |>
+    read_tsv(col_types = cols()) |>
+    mutate(
+        chromosome = as.numeric(str_remove(chromosome, 'chr')),
+        chromosome = factor(chromosome, levels = 1:15),
+        comparison = paste(pop1, pop2, sep = '-'),
+        .before = pop1
+    ) |>
+    filter(!is.na(avg_dxy), no_sites >= 1e4) |>
+    arrange(chromosome, window_pos_1)
+
+# Join Dxy and Fst (pairwise div) together.
+df_data <- inner_join(df_fst, df_dxy)
+
+df_pi <- dir_ls(
+    path = here("results", "03-diversity", "within", "ref-hmaj"),
+    glob = "*100kb_pi.txt"
+) |>
+    read_tsv(col_types = cols()) |>
+    filter(!is.na(avg_pi), no_sites > 1e4) |>
+    arrange(pop, chromosome, window_pos_1) |>
+    mutate(
+        chromosome = as.numeric(str_remove(chromosome, 'chr')),
+        chromosome = factor(chromosome, levels = 1:15)
+    )
+```
+
+Then we mask the problematic regions (remove them from downstream analyses).
+This is accomplished by intersecting the divergence windows against the mask
+file and removing any that overlap (even by a base-pair).
+
+```{r filter-on-mask}
+## Pairwise data
+overlaps <- GenomicRanges::findOverlaps(
+    df_data |>
+        rename(start = window_pos_1, end = window_pos_2) |>
+        GenomicRanges::makeGRangesFromDataFrame(keep.extra.columns = TRUE),
+    gr_mask
+)
+
+df_data$overlaps_mask <- FALSE
+df_data$overlaps_mask[S4Vectors::queryHits(overlaps)] <- TRUE
+df_data <- df_data |>
+    filter(!overlaps_mask) |>
+    select(-overlaps_mask)
+
+## Within species
+overlaps <- GenomicRanges::findOverlaps(
+    df_pi |>
+        rename(start = window_pos_1, end = window_pos_2) |>
+        GenomicRanges::makeGRangesFromDataFrame(keep.extra.columns = TRUE),
+    gr_mask
+)
+
+df_pi$overlaps_mask <- FALSE
+df_pi$overlaps_mask[S4Vectors::queryHits(overlaps)] <- TRUE
+df_pi <- df_pi |>
+    filter(!overlaps_mask)
+
+df_pi |>
+    write_csv(here("results", "03-diversity", "within", "ref-hmaj", "clean-data.csv"), col_names = TRUE)
+``` 
+
+Then do some more formatting.
+
+```{r}
+df_pi_wide <- df_pi |>
+    select(pop, chromosome, window_pos_1, window_pos_2, avg_pi) |>
+    pivot_wider(names_from = pop, values_from = avg_pi) |>
+    rename_with(.cols = dplyr::starts_with("H"), .fn = ~ paste0(., "_pi"))
+
+# Create wide-format data for correlation plots
+df_div_stats_wide <- df_data |>
+    pivot_wider(names_from = comparison, values_from = starts_with("avg_")) |>
+    left_join(df_pi_wide)
+
+# ------------ Reference matched statistics ----------------------
+# Reference match pi
+df_pi_ref_matched <- dir_ls(
+    path = here("results", "03-diversity", "within", "ref-matched"),
+    glob = "*100kb_pi.txt"
+) |>
+    read_tsv(col_types = cols()) |>
+    filter(!is.na(avg_pi), no_sites > 1e4) |>
+    mutate(
+        chromosome = as.numeric(str_remove(chromosome, 'chr')),
+        chromosome = factor(chromosome, levels = 1:16)
+    ) |>
+    arrange(pop, chromosome, window_pos_1)
+
+df_pi_ref_matched_gw_avg <- df_pi_ref_matched |>
+    summarise(
+        avg_pi = sum(count_diffs) / sum(count_comparisons),
+        .by = c(pop)
+    )
+
+# Genome wide avg. Tajima's D from SFS
+sfs_tajD <- read_csv(here("data", "sfs-tajD-genome-avg.csv"))
+```
+
+I'll also estimate the genome-wide d~XY~ value here
+
+```{r genome-wide-dxy}
+df_data |>
+    summarise(dxy = sum(count_diffs) / sum(count_comparisons), .by = comparison)
+```
+
+## Correlations of diversity statistics
+
+### Within-species correlations
+
+The code below forms figure 3 in the main text. Essentially correlating the diversity statistics
+within each pairwise comparison. 
+
+```{r pair-vs-pi}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 150
+# HCU-HEL
+df_div_hcu_hel <- subset_for_comp_species(
+    d = df_div_stats_wide,
+    comparison = "HCU-HEL"
+)
+
+plot_fst_pi_hcu_hel <- plot_div_pi_scatter(
+    df_div_hcu_hel,
+    stat = "fst",
+    pal = pal_within,
+    shp = 1,
+    alpha = 0.2,
+    blank_x = TRUE
+)
+
+plot_dxy_pi_hcu_hel <- plot_div_pi_scatter(
+    df_div_hcu_hel,
+    stat = "dxy",
+    pal = pal_within,
+    shp = 1,
+    alpha = 0.2,
+    n_breaks = 7
+)
+
+plot_dxy_fst_hcu_hel <- plot_fst_dxy_within(
+    d = df_data |> filter(comparison == "HCU-HEL"),
+    n_breaks = 5
+)
+
+# HCU-HMA
+df_div_hcu_hma <- subset_for_comp_species(
+    d = df_div_stats_wide,
+    comparison = "HCU-HMA"
+)
+
+plot_fst_pi_hcu_hma <- plot_div_pi_scatter(
+    df_div_hcu_hma,
+    stat = "fst",
+    pal = pal_within,
+    shp = 1,
+    alpha = 0.2,
+    blank_x = TRUE,
+    blank_y = TRUE
+)
+
+plot_dxy_pi_hcu_hma <- plot_div_pi_scatter(
+    df_div_hcu_hma,
+    stat = "dxy",
+    pal = pal_within,
+    shp = 1,
+    alpha = 0.2,
+    blank_y = TRUE
+)
+
+plot_dxy_fst_hcu_hma <- plot_fst_dxy_within(
+    d = df_data |> filter(comparison == "HCU-HMA"),
+    n_breaks = 5,
+    blank_y = TRUE
+)
+
+# HEL-HMA
+df_div_hel_hma <- subset_for_comp_species(
+    d = df_div_stats_wide,
+    comparison = "HEL-HMA"
+)
+
+plot_fst_pi_hel_hma <- plot_div_pi_scatter(
+    df_div_hel_hma,
+    stat = "fst",
+    pal = pal_within,
+    shp = 1,
+    alpha = 0.2,
+    blank_x = TRUE,
+    blank_y = TRUE
+)
+
+plot_dxy_pi_hel_hma <- plot_div_pi_scatter(
+    df_div_hel_hma,
+    stat = "dxy",
+    pal = pal_within,
+    shp = 1,
+    alpha = 0.2,
+    blank_y = TRUE
+)
+
+plot_dxy_fst_hel_hma <- plot_fst_dxy_within(
+    d = df_data |> filter(comparison == "HEL-HMA"),
+    n_breaks = 5,
+    blank_y = TRUE
+)
+
+fig3 <- list(
+    plot_fst_pi_hcu_hel$density,
+    plot_fst_pi_hcu_hma$density,
+    plot_fst_pi_hel_hma$density,
+    plot_fst_pi_hcu_hel$scatter,
+    plot_fst_pi_hcu_hma$scatter,
+    plot_fst_pi_hel_hma$scatter,
+    plot_dxy_pi_hcu_hel$scatter,
+    plot_dxy_pi_hcu_hma$scatter,
+    plot_dxy_pi_hel_hma$scatter,
+    plot_dxy_fst_hcu_hel,
+    plot_dxy_fst_hcu_hma,
+    plot_dxy_fst_hel_hma
+) |>
+    wrap_plots(ncol = 3) +
+    plot_layout(heights = c(0.3, 1, 1, 1)) +
+    plot_annotation(tag_levels = "A") &
+    theme(plot.tag = element_text(size = 16, face = "bold"))
+
+pdf(
+    file = here(
+        "manuscript",
+        "figures",
+        "figure-3-div-correlation-within-species.pdf"
+    ),
+    width = 4000 / 300,
+    height = 4000 / 300
+)
+fig3
+invisible(dev.off())
+
+ragg::agg_png(
+    filename = here(
+        "manuscript",
+        "figures",
+        "figure-3-div-correlation-within-species.png"
+    ),
+    width = 1800,
+    height = 2200,
+    units = "px",
+    res = 150
+)
+fig3
+invisible(dev.off())
+
+fig3
+```
+
+### Supplementary figure
+
+Here we fill each point in the pairwise comparisons with the F~ST~ value. This
+will highlight that windows reporting high F~ST~ actually have low nucleotide
+diversity, which is artifically inflating the value. Each column represents
+a comparison.
+
+```{r high-fst-caused-by-low-pi}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 150
+supp_pi_dxy_fst_fill_hcu_hel <- df_div_stats_wide |>
+    select(
+        pop1,
+        pop2,
+        chromosome,
+        window_pos_1,
+        `avg_wc_fst_HCU-HEL`,
+        `avg_dxy_HCU-HEL`,
+        HCU_pi,
+        HEL_pi
+    ) |>
+    pivot_longer(names_to = "species", values_to = "pi", ends_with("_pi")) |>
+    mutate(
+        species = str_remove(species, "_pi"),
+        species = case_when(
+            species == "HCU" ~ "H. curtus",
+            species == "HEL" ~ "H. elegans"
+        )
+    ) |>
+    filter(pop1 == "HCU" & pop2 == "HEL") |>
+    ggplot(aes(x = pi, y = `avg_dxy_HCU-HEL`, colour = `avg_wc_fst_HCU-HEL`)) +
+    geom_point(alpha = 0.2) +
+    geom_smooth(method = 'lm', colour = "black") +
+    ggpubr::stat_cor(
+        method = "spearman",
+        digits = 3,
+        label.x.npc = "left",
+        label.y.npc = 0.9,
+        p.accuracy = 0.001,
+        show.legend = FALSE,
+        cor.coef.name = "rho",
+        size = 5
+    ) +
+    scale_colour_gradientn(
+        colours = c("grey90", "grey80", "grey70", "#f3722c"),
+        values = c(0, 0.25, 0.5, 0.75, 1),
+        breaks = c(0, 0.25, 0.5, 0.75, 1),
+        labels = c("0", "0.25", "0.5", "0.75", "1"),
+        limits = c(0, 1)
+    ) +
+    scale_y_continuous(
+        breaks = scales::breaks_pretty(n = 7),
+        labels = scales::label_number(drop0trailing = TRUE)
+    ) +
+    scale_x_continuous(
+        breaks = scales::breaks_pretty(n = 5),
+        labels = scales::label_number(drop0trailing = TRUE),
+        limits = c(0, 0.01)
+    ) +
+    labs(
+        x = "*\U03C0*",
+        y = "*d<sub>XY</sub>*",
+        colour = "*F<sub>ST</sub>*",
+        tag = "A"
+    ) +
+    ggh4x::facet_wrap2(vars(species), nrow = 1) +
+    theme_classic() +
+    theme(
+        strip.text = element_text(size = 16, face = "italic"),
+        
+        axis.title.x = element_markdown(size = 16),
+        axis.title.y = element_markdown(size = 16),
+        
+        axis.text = element_text(size = 14),
+        
+        strip.background = element_blank(),
+        strip.text.x = element_text(face = "italic"),
+        
+        legend.title = element_markdown(size = 16),
+        legend.text = element_text(size = 14),
+        legend.key.size =  unit(1, "cm")
+    )
+
+supp_pi_dxy_fst_fill_hcu_hma <- df_div_stats_wide |>
+    select(
+        pop1,
+        pop2,
+        chromosome,
+        window_pos_1,
+        `avg_wc_fst_HCU-HMA`,
+        `avg_dxy_HCU-HMA`,
+        HCU_pi,
+        HMA_pi
+    ) |>
+    pivot_longer(names_to = "species", values_to = "pi", ends_with("_pi")) |>
+    mutate(
+        species = str_remove(species, "_pi"),
+        species = case_when(
+            species == "HCU" ~ "H. curtus",
+            species == "HMA" ~ "H. major"
+        )
+    ) |>
+    filter(pop1 == "HCU" & pop2 == "HMA") |>
+    ggplot(aes(x = pi, y = `avg_dxy_HCU-HMA`, colour = `avg_wc_fst_HCU-HMA`)) +
+    geom_point(alpha = 0.2) +
+    geom_smooth(method = 'lm', colour = "black") +
+    ggpubr::stat_cor(
+        method = "spearman",
+        digits = 3,
+        label.x.npc = "left",
+        label.y.npc = 0.9,
+        p.accuracy = 0.001,
+        show.legend = FALSE,
+        cor.coef.name = "rho",
+        size = 5
+    ) +
+    scale_colour_gradientn(
+        colours = c("grey90", "grey80", "grey70", "#f3722c"),
+        values = c(0, 0.25, 0.5, 0.75, 1),
+        breaks = c(0, 0.25, 0.5, 0.75, 1),
+        labels = c("0", "0.25", "0.5", "0.75", "1"),
+        limits = c(0, 1)
+    ) +
+    scale_y_continuous(
+        breaks = scales::breaks_pretty(n = 7),
+        labels = scales::label_number(drop0trailing = TRUE)
+    ) +
+    scale_x_continuous(
+        breaks = scales::breaks_pretty(n = 5),
+        labels = scales::label_number(drop0trailing = TRUE),
+        limits = c(0, 0.01)
+    ) +
+    labs(
+        x = "*\U03C0*",
+        y = "*d<sub>XY</sub>*",
+        colour = "*F<sub>ST</sub>*",
+        tag = "B"
+    ) +
+    ggh4x::facet_wrap2(vars(species), nrow = 1) +
+    theme_classic() +
+    theme(
+        strip.text = element_text(size = 16, face = "italic"),
+        
+        axis.title.x = element_markdown(size = 16),
+        axis.title.y = element_markdown(size = 16),
+        
+        axis.text = element_text(size = 14),
+        
+        strip.background = element_blank(),
+        strip.text.x = element_text(face = "italic"),
+        
+        legend.title = element_markdown(size = 16),
+        legend.text = element_text(size = 14),
+        legend.key.size =  unit(1, "cm")
+    )
+
+supp_pi_dxy_fst_fill_hel_hma <- df_div_stats_wide |>
+    select(
+        pop1,
+        pop2,
+        chromosome,
+        window_pos_1,
+        `avg_wc_fst_HEL-HMA`,
+        `avg_dxy_HEL-HMA`,
+        HEL_pi,
+        HMA_pi
+    ) |>
+    pivot_longer(names_to = "species", values_to = "pi", ends_with("_pi")) |>
+    mutate(
+        species = str_remove(species, "_pi"),
+        species = case_when(
+            species == "HEL" ~ "H. elegans",
+            species == "HMA" ~ "H. major"
+        )
+    ) |>
+    filter(pop1 == "HEL" & pop2 == "HMA") |>
+    ggplot(aes(x = pi, y = `avg_dxy_HEL-HMA`, colour = `avg_wc_fst_HEL-HMA`)) +
+    geom_point(alpha = 0.2) +
+    geom_smooth(method = 'lm', colour = "black") +
+    ggpubr::stat_cor(
+        method = "spearman",
+        digits = 3,
+        label.x.npc = "left",
+        label.y.npc = 0.9,
+        p.accuracy = 0.001,
+        show.legend = FALSE,
+        cor.coef.name = "rho",
+        size = 5
+    ) +
+    scale_colour_gradientn(
+        colours = c("grey90", "grey80", "grey70", "#f3722c"),
+        values = c(0, 0.25, 0.5, 0.75, 1),
+        breaks = c(0, 0.25, 0.5, 0.75, 1),
+        labels = c("0", "0.25", "0.5", "0.75", "1"),
+        limits = c(0, 1)
+    ) +
+    scale_y_continuous(
+        breaks = scales::breaks_pretty(n = 7),
+        labels = scales::label_number(drop0trailing = TRUE)
+    ) +
+    scale_x_continuous(
+        breaks = scales::breaks_pretty(n = 5),
+        labels = scales::label_number(drop0trailing = TRUE),
+        limits = c(0, 0.01)
+    ) +
+    labs(
+        x = "*\U03C0*",
+        y = "*d<sub>XY</sub>*",
+        colour = "*F<sub>ST</sub>*",
+        tag = "C"
+    ) +
+    ggh4x::facet_wrap2(vars(species), nrow = 1) +
+    theme_classic() +
+    theme(
+        strip.text = element_text(size = 16, face = "italic"),
+        
+        axis.title.x = element_markdown(size = 16),
+        axis.title.y = element_markdown(size = 16),
+        
+        axis.text = element_text(size = 14),
+        
+        strip.background = element_blank(),
+        strip.text.x = element_text(face = "italic"),
+        
+        legend.title = element_markdown(size = 16),
+        legend.text = element_text(size = 14),
+        legend.key.size =  unit(1, "cm")
+    )
+
+supp_fig_pi_dxy_fst <- (supp_pi_dxy_fst_fill_hcu_hel /
+                            supp_pi_dxy_fst_fill_hcu_hma /
+                            supp_pi_dxy_fst_fill_hel_hma) +
+    plot_layout(guides = "collect", axes = "collect_x") &
+    theme(
+        # legend.key.size = unit(1, "cm"),
+        # legend.text = element_text(size = 12),
+        # legend.title = element_text(size = 12),
+        # axis.text = element_text(size = 10),
+        plot.tag = element_text(face = "bold")
+    )
+
+ragg::agg_png(
+    filename = here(
+        "manuscript",
+        "figures",
+        "supplementary",
+        "supp-figure-X-pi_dxy_fst-fill.png"
+    ),
+    width = 1000,
+    height = 1200,
+    units = "px",
+    scaling = 1.2
+)
+supp_fig_pi_dxy_fst
+invisible(dev.off())
+
+supp_fig_pi_dxy_fst
+```
+
+### Between species pairwise correlations
+
+Here we're going to correlate F~ST~ and d~XY~ between each pair of species
+comparisons. This is used to asses if the same genomic windows show similar or
+different divergence patterns between pairs of snakes.
+
+```{r between-species-div-stat-corr, warning=FALSE, message=FALSE}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 150
+comparisons_between <- list(
+    c("HCU-HEL", "HCU-HMA"),
+    c("HCU-HEL", "HEL-HMA"),
+    c("HCU-HMA", "HEL-HMA")
+)
+plot_scatter_between_fst <- imap(comparisons_between, \(comp, idx) {
+    comp1 <- case_when(
+        comp[[1]] == "HCU-HEL" ~ "H. curtus - H. elegans",
+        comp[[1]] == "HCU-HMA" ~ "H. curtus - H. major",
+        comp[[1]] == "HEL-HMA" ~ "H. elegans - H. major"
+    )
+    
+    comp2 <- case_when(
+        comp[[2]] == "HCU-HEL" ~ "H. curtus - H. elegans",
+        comp[[2]] == "HCU-HMA" ~ "H. curtus - H. major",
+        comp[[2]] == "HEL-HMA" ~ "H. elegans - H. major"
+    )
+    
+    # space to left/right top/bottom of figures
+    expan <- c(0.01, 0.035)
+    
+    p <- df_data |>
+        filter(comparison %in% comp) |>
+        select(comparison, chromosome, window_pos_1, avg_wc_fst) |>
+        pivot_wider(names_from = comparison, values_from = avg_wc_fst) |>
+        ggplot(
+            aes(
+                x = .data[[comp[1]]],
+                y = .data[[comp[2]]]
+            )
+        ) +
+        scale_x_continuous(
+            limits = c(0, 1),
+            breaks = c(0, 0.5, 1),
+            labels = c("0", "0.5", "1"),
+            expand = expansion(mult = expan)
+        ) +
+        scale_y_continuous(
+            limits = c(0, 1),
+            breaks = c(0, 0.5, 1),
+            labels = c("0", "0.5", "1"),
+            expand = expansion(mult = expan)
+        ) +
+        geom_point(colour = 'grey80') +
+        geom_smooth(method = 'lm', colour = "black") +
+        ggpubr::stat_cor(
+            method = "spearman",
+            digits = 3,
+            label.x.npc = "left",
+            label.y.npc = "top",
+            p.accuracy = 0.001,
+            show.legend = FALSE,
+            cor.coef.name = "rho",
+            size = 5
+        ) +
+        labs(
+            x = comp1,
+            y = comp2
+        ) +
+        theme_bw() +
+        theme(
+            axis.text = element_text(size = 14),
+            axis.title = element_text(size = 16, face = "italic"),
+            axis.title.x = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank(),
+            axis.line = element_line(colour = "black", linewidth = 0.4)
+        )
+    p
+})
+
+plot_scatter_between_dxy <- imap(comparisons_between, \(comp, idx) {
+    comp1 <- case_when(
+        comp[[1]] == "HCU-HEL" ~ "H. curtus - H. elegans",
+        comp[[1]] == "HCU-HMA" ~ "H. curtus - H. major",
+        comp[[1]] == "HEL-HMA" ~ "H. elegans - H. major"
+    )
+    
+    comp2 <- case_when(
+        comp[[2]] == "HCU-HEL" ~ "H. curtus - H. elegans",
+        comp[[2]] == "HCU-HMA" ~ "H. curtus - H. major",
+        comp[[2]] == "HEL-HMA" ~ "H. elegans - H. major"
+    )
+    
+    expan <- c(0.01, 0.035)
+    
+    p <- df_data |>
+        filter(comparison %in% comp) |>
+        select(comparison, chromosome, window_pos_1, avg_dxy) |>
+        pivot_wider(names_from = comparison, values_from = avg_dxy) |>
+        ggplot(
+            aes(
+                x = .data[[comp[1]]],
+                y = .data[[comp[2]]]
+            )
+        ) +
+        geom_point(colour = 'grey40', alpha = 0.3) +
+        geom_smooth(method = 'lm', colour = "black") +
+        ggpubr::stat_cor(
+            method = "spearman",
+            digits = 3,
+            label.x.npc = "left",
+            label.y.npc = "top",
+            p.accuracy = 0.001,
+            show.legend = FALSE,
+            cor.coef.name = "rho",
+            size = 5
+        ) +
+        scale_y_continuous(
+            breaks = scales::pretty_breaks(n = 5),
+            labels = scales::label_number(drop0trailing = TRUE),
+            expand = expansion(mult = expan)
+        ) +
+        scale_x_continuous(
+            limits = c(0, 0.016),
+            breaks = scales::pretty_breaks(n = 5),
+            labels = scales::label_number(drop0trailing = TRUE),
+            expand = expansion(mult = expan)
+        ) +
+        labs(x = comp1, y = comp2) +
+        theme_bw() +
+        theme(
+            axis.text = element_text(size = 14),
+            axis.title = element_text(size = 16, face = "italic"),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank(),
+            axis.line = element_line(colour = "black", linewidth = 0.4)
+        )
+    
+    # if(idx == 1) {
+    #     p <- p + labs(tag = "B")
+    # }
+    p
+})
+
+supp_fig_fst_dxy <- wrap_plots(c(
+    plot_scatter_between_fst,
+    plot_scatter_between_dxy
+)) +
+    plot_annotation(tag_levels = "A") +
+    plot_layout(nrow = 2) &
+    theme(plot.tag = element_text(size = 16, face = "bold"))
+
+ragg::agg_png(
+    filename = here(
+        "manuscript",
+        "figures",
+        "supplementary",
+        "supp-figure-X-pairwise_correlation_dxy_fst.png"
+    ),
+    width = 1000,
+    height = 800,
+    units = "px",
+    scaling = 1.1
+)
+supp_fig_fst_dxy
+invisible(dev.off())
+
+# Display in document
+supp_fig_fst_dxy
+```
+
+## Genome scans
+
+Genome scans are used to identify which regions of the genome show high/low
+divergence.
+
+### High/low divergence regions
+
+First, the code below is used to Z-normalise windowed estimates of F~ST~ to enable
+better comparison between datasets.
+
+```{r ZFst-transformation}
+df_data <- df_data |>
+    mutate(
+        zfst = as.numeric(scale(avg_wc_fst)),
+        .by = comparison
+    )
+```
+
+Windows where ZF~ST~ is $\geq$ 3 and $\leq$ -3 are classified as high- and
+low-divergence windows, respectively.
+
+```{r}
+df_data <- df_data |>
+    mutate(
+        classification = case_when(
+            zfst <= -3 ~ 'Low',
+            zfst >= 3 ~ 'High',
+            .default = 'Background'
+        ),
+        classification = factor(
+            classification,
+            levels = c("Background", "High", "Low")
+        ),
+        highlight = ifelse(as.numeric(chromosome) %% 2 == 0, 'even', 'odd')
+    )
+
+df_data |>
+    write_csv(here("results", "03-diversity", "between", "clean-data.csv"), col_names = TRUE)
+
+# Summary of background, low- and high-divergence windows
+df_high_low_div_count <- df_data |>
+    summarise(count = n(), .by = c("comparison", "classification")) |>
+    pivot_wider(names_from = classification, values_from = count)
+
+# Write high/low windows to CSV
+df_data |>
+    filter_out(classification == "Background") |>
+    write_csv(here("manuscript", "tables", "supplementary", "supp-div-scan-high_low_div_regions.csv"))
+
+df_high_low_div_count |>
+    gt::gt(rowname_col = "comparison") |>
+    gt::sub_missing(missing_text = "-") |>
+    gt::fmt_number(columns = 2, sep_mark = ",", drop_trailing_zeros = TRUE) |>
+    gt::cols_align(columns = 2:4, align = "center") |>
+    gt::tab_style(
+        style = gt::cell_text(weight = "bold"),
+        locations = gt::cells_column_labels(everything())
+    ) |>
+    gt::as_raw_html()
+```
+
+Exploring high- and low-divergence windows by chromosome shows the following
+distribution.
+
+```{r}
+df_data |>
+    summarise(
+        count = n(),
+        .by = c("comparison", "chromosome", "classification")
+    ) |>
+    filter(classification != "Background") |>
+    pivot_wider(
+        names_from = c(comparison, classification),
+        values_from = count,
+        names_sep = " "
+    ) |>
+    gt::gt() |>
+    gt::sub_missing(missing_text = "-") |>
+    gt::tab_spanner(
+        label = "HCU-HEL",
+        columns = c(`HCU-HEL Low`, `HCU-HEL High`)
+    ) |>
+    gt::tab_spanner(
+        label = "HCU-HMA",
+        columns = c(`HCU-HMA Low`, `HCU-HMA High`)
+    ) |>
+    gt::tab_spanner(
+        label = "HEL-HMA",
+        columns = c(`HEL-HMA Low`, "HEL-HMA High")
+    ) |>
+    gt::cols_label(
+        `HCU-HEL Low` = "Low",
+        `HCU-HEL High` = "High",
+        `HCU-HMA Low` = "Low",
+        `HCU-HMA High` = "High",
+        `HEL-HMA Low` = "Low",
+        `HEL-HMA High` = "High"
+    ) |>
+    gt::cols_align(columns = 2:5, align = "center") |>
+    gt::cols_align(columns = 6, align = "left") |>
+    gt::as_raw_html()
+```
+
+We can see that there are a few high-divergence windows across chromosomes,
+however we'll see below that these appear to reside within putative centromeric
+regions.
+
+### Distribution across the genome (genome-scan)
+
+Here we plot the divergence statistics across the genome. The tandem repeat (TR) output
+from `centrominer` is also visualised here. Overlaying the centrominer results illustrates
+if high-divergence windows reside in genuine regions of difference, or simply in/around
+regions that are known to have lower recombination rates and higher LD.
+
+```{r load-centrominer}
+# TR column is 'tandem repeat'. It shows the length of TR found in the window
+# 100kb windows - therefore a 100kb value indicates the whole window is TR.
+df_centrominer <- fs::dir_ls(
+    path = here('results', '00-other', 'centrominer')
+) |>
+    read_tsv(
+        col_names = c("site", "value", "type"),
+        col_types = cols(),
+        id = 'chromosome'
+    ) |>
+    mutate(
+        chromosome = sub(
+            'hydrophis_major\\.(chr.*).tsv',
+            '\\1',
+            basename(chromosome)
+        ),
+    ) |>
+    filter(chromosome != "chrZ") |>
+    mutate(
+        chromosome = as.numeric(str_remove(chromosome, "chr")),
+        chromosome = factor(
+            chromosome,
+            levels = 1:15
+        )
+    ) |>
+    arrange(chromosome, site) |>
+    pivot_wider(names_from = type, values_from = value) |>
+    mutate(
+        window_pos_1 = site + 1,
+        window_pos_2 = window_pos_1 + 5e4 - 1,
+        statistic = "Centromere",
+        highlight = ifelse(as.numeric(chromosome) %% 2 == 0, 'even', 'odd'),
+        # highlight = ifelse(TR >= 25e3, "outlier", highlight)
+    ) |>
+    select(statistic, chromosome, window_pos_1, window_pos_2, TR, highlight)
+```
+
+```{r genome-scan-high-low-div-ZFst}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 150
+lvls_between <- c("HCU-HMA", "HCU-HEL", "HEL-HMA")
+
+df_data <- df_data |>
+    mutate(
+        comp_label = case_when(
+            comparison == "HCU-HEL" ~ "H. curtus\n-\nH. elegans",
+            comparison == "HCU-HMA" ~ "H. curtus\n-\nH. major",
+            comparison == "HEL-HMA" ~ "H. elegans\n-\nH. major"
+        ),
+        .before = pop1
+    )
+
+# Genome scan across macro-chromosomes
+plot_genome_scan <- df_data |>
+    filter(chromosome %in% 1:6) |>
+    ggplot(
+        aes(
+            x = floor((window_pos_1 + window_pos_2) / 2),
+            y = zfst
+        )
+    ) +
+    geom_point(aes(colour = highlight), show.legend = FALSE) +
+    scale_colour_manual(values = c("grey85", "grey70")) +
+    ggnewscale::new_scale_colour() + 
+    geom_point(
+        data = df_data |>
+            filter(classification != "Background", chromosome %in% 1:6),
+        mapping = aes(colour = classification)
+    ) +
+    facet_grid(
+        rows = vars(comp_label),
+        cols = vars(chromosome),
+        scales = "free_x",
+        switch = "x",
+    ) +
+    labs(
+        x = "Chromosome",
+        y = "*ZF~ST~*",
+        tag = "B"
+    ) +
+    scale_y_continuous(
+        limits = c(-6, 4),
+        breaks = c(-3, 0, 3),
+        labels = c("-3", "0", "3"),
+    ) +
+    scale_x_continuous(expand = c(0,0)) +
+    guides(
+        colour = guide_legend(
+            title = "*ZF~ST~*",
+            title.position = "top",
+            nrow = 1,
+            override.aes = list(size = 5)
+        )
+    ) +
+    scale_colour_manual(values = c("#ef233c", "black"), labels = c("≥ 3", "≤ 3")) +
+    theme_classic() +
+    theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        axis.title.y = element_markdown(size = 16),
+        legend.position = "bottom",
+        legend.text = element_markdown(size = 12),
+        legend.title = element_markdown(size = 12),
+        plot.margin = grid::unit(c(0, 0, 0, 0), "mm"),
+        strip.text.x = element_text(size = 16),
+        strip.text.y = element_text(size = 12, face = "italic"),
+        strip.background.x = element_blank(),
+        strip.background.y = ggh4x::element_part_rect(side = "l"),
+        strip.placement = "outside",
+        plot.tag = element_text(size = 16, face = "bold")
+    )
+
+# Centrominer figure
+plot_centromeres <- df_centrominer |>
+    filter(chromosome %in% 1:6) |>
+    ggplot(
+        aes(
+            x = floor((window_pos_1 + window_pos_2) / 2),
+            y = TR
+        )
+    ) +
+    geom_point(aes(colour = highlight), show.legend = FALSE) +
+    scale_colour_manual(values = c("grey85", "grey70")) +
+    scale_x_continuous(expand = c(0,0)) +
+    # geom_hline(yintercept = 25e3, linetype = "dashed") +
+    scale_y_continuous(
+        breaks = c(0, 25e3, 50e3, 75e3, 100e3),
+        labels = scales::number_format(scale = 1e-3),
+        expand = c(0,0),
+        limits = c(0, 100e3)
+    ) +
+    facet_grid(
+        cols = vars(chromosome),
+        scales = "free_x",
+        switch = "x"
+    ) +
+    labs(
+        y = "Tandem repeat\nlength (kbp)",
+        tag = "A"
+    ) +
+    theme_classic() +
+    theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 16),
+        axis.text = element_text(size = 14),
+        strip.background = element_blank(),
+        strip.text.x = element_blank(),
+        # axis.line.x = element_blank(),
+        plot.tag = element_text(size = 16, face = "bold"),
+        plot.margin = grid::unit(c(0, 0, 5, 0), "mm"),
+        strip.placement = "outside",
+    )
+
+(plot_centromeres / plot_genome_scan) + plot_layout(heights = c(0.3, 1))
+```
+
+We observe that almost all the windows reporting ZF~ST~ $\geq$ 3 coincide almost exactly
+with regions predicted by `centrominer` to contain long stretches of centromeric tandem
+repeats. Consequently, it's likely that these regions of "high-divergece" are actually
+a product of within-species genetic diversity elevating relative divergence measures.
+
+```{r div-scan-all-chrom}
+ragg::agg_png(
+    filename = here(
+        "manuscript",
+        "figures",
+        "supplementary",
+        "supp-figure-X-div_scan_all_chrom.png"
+    ),
+    width = 1200,
+    height = 1000,
+    units = "px",
+    scaling = 1.2
+)
+df_data |>
+    ggplot(
+        aes(
+            x = floor((window_pos_1 + window_pos_2) / 2),
+            y = zfst
+        )
+    ) +
+    geom_point(aes(colour = highlight), show.legend = FALSE) +
+    scale_colour_manual(values = c("grey85", "grey70")) +
+    ggnewscale::new_scale_colour() + 
+    geom_point(
+        data = \(d) d |>
+            filter(classification != "Background"),
+        mapping = aes(colour = classification)
+    ) +
+    facet_grid(
+        rows = vars(comp_label),
+        cols = vars(chromosome),
+        scales = "free_x",
+        switch = "x",
+    ) +
+    labs(
+        x = "Chromosome",
+        y = "*ZF~ST~*",
+    ) +
+    scale_y_continuous(
+        limits = c(-6, 4),
+        breaks = c(-3, 0, 3),
+        labels = c("-3", "0", "3"),
+    ) +
+    scale_x_continuous(expand = c(0,0)) +
+    guides(
+        colour = guide_legend(
+            title = "*ZF~ST~*",
+            title.position = "top",
+            nrow = 1,
+            override.aes = list(size = 5)
+        )
+    ) +
+    scale_colour_manual(values = c("#ef233c", "black"), labels = c("≥ 3", "≤ 3")) +
+    theme_classic() +
+    theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        axis.title.y = element_markdown(size = 16),
+        
+        legend.position = "bottom",
+        legend.text = element_markdown(size = 14),
+        legend.title = element_markdown(size = 16),
+        
+        plot.margin = grid::unit(c(0, 0, 0, 0), "mm"),
+        
+        strip.text.x = element_text(size = 16),
+        strip.text.y = element_text(size = 16, face = "italic"),
+        strip.background.x = element_blank(),
+        strip.background.y = ggh4x::element_part_rect(side = "l"),
+        strip.placement = "outside",
+    )
+invisible(dev.off())
+```
+
+
+### Divergence statistics in high/low windows vs background
+
+```{r}
+# Summary numbers
+df_data |>
+    summarise(
+        mean_zfst = mean(zfst),
+        mean_dxy = mean(avg_dxy),
+        .by = c(comparison, classification)
+    )
+```
+
+Below we grab the nucleotide diversity statistics for each species for classified
+windows.
+
+```{r}
+df_pi_classified <- df_data |>
+    group_by(comparison) |>
+    group_split() |>
+    map(\(x) {
+        pop1 <- x |> pull(pop1) |> unique()
+        pop2 <- x |> pull(pop2) |> unique()
+        
+        regions <- x |>
+            select(comparison, chromosome, dplyr::starts_with("window_pos"), classification)
+        
+        df_pi |>
+            filter(pop %in% c(pop1, pop2)) |>
+            select(pop, chromosome, dplyr::starts_with("window_pos"), avg_pi) |>
+            left_join(regions) |>
+            filter_out(is.na(classification))
+    }) |>
+    list_rbind()
+```
+
+Visualised as a boxplot for d~XY~.
+
+```{r}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 150
+plot_box_scan_window_dxy <- df_data |>
+    select(comparison, classification, avg_dxy) |>
+    pivot_longer(names_to = "measure", values_to = "values", avg_dxy) |>
+    ggplot(aes(x = comparison, y = values, fill = classification)) +
+    geom_boxplot(alpha = 0.7) +
+    scale_fill_manual(values = c("grey80","#ef233c", "black")) +
+    labs(
+        x = NULL, 
+        y = "Absolute divergence (*d~XY~*)",
+        fill = "Classification"
+    ) +
+    scale_y_continuous(breaks = scales::breaks_pretty(n = 5)) +
+    theme_classic() +
+    theme(
+        axis.title.y  = element_markdown(size = 16),
+        
+        axis.text = element_text(size = 14),
+        
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        legend.position = "bottom"
+    )
+plot_box_scan_window_dxy
+```
+
+And nucleotide diversity.
+
+```{r}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 150
+plot_box_scan_window_pi <- df_pi_classified |>
+    mutate(
+        pop = forcats::fct_inorder(pop),
+        comparison = forcats::fct_inorder(comparison)
+    ) |>
+    ggplot(
+        aes(
+            x = pop, 
+            y = avg_pi, 
+            fill = classification,
+            # group = interaction(classification, comparison, pop)
+        )
+    ) +
+    geom_boxplot(alpha = 0.7) +
+    facet_wrap(~ comparison, nrow = 1, scales = "free_x") +
+    scale_fill_manual(values = c("grey80", "#ef233c", "black")) +
+    scale_y_continuous(breaks = scales::breaks_pretty(n = 5)) +
+    labs(
+        x = NULL, 
+        y = "Nucleotide diversity (*\U03C0* )",
+        fill = "Classification"
+    ) +
+    theme_classic() +
+    theme(
+        strip.background = element_blank(),
+        strip.text = element_text(size = 14),
+        
+        axis.title.y = element_markdown(size = 16),
+        axis.text = element_text(size = 14),
+        
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        legend.position = "bottom"
+    )
+plot_box_scan_window_pi
+```
+
+Using a permutation test, we can establish if d~XY~ and π are statistically different
+in the high/low windows compared to the genomic background.
+
+```{r}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 250
+library(regioneR)
+
+mean_score <- function(A, universe, ...) {
+    ol <- findOverlaps(A, universe, type = "equal")
+    mean(universe$score[subjectHits(ol)], na.rm = TRUE)
+}
+
+# Only doing comparisons for these two as HEL-HMA only had 2 high-div windows
+#   - problematic statistically to run
+comps <- c("HCU-HEL", "HCU-HMA")
+n_iter <- 1e4
+
+perm_dxy <- map(comps, \(x) {
+    gr_universe <- df_data |>
+        filter(comparison == x) |>
+        select(
+            chrom = chromosome, 
+            start = window_pos_1, 
+            end = window_pos_2, 
+            score = avg_dxy, 
+            comparison, classification
+        ) |>
+        GenomicRanges::makeGRangesFromDataFrame(keep.extra.columns = TRUE)
+    
+    # Observed high-div regions
+    gr_obs <- gr_universe[gr_universe$classification == "High"]
+    
+    perm_out <- permTest(
+        A = gr_obs,
+        ntimes = n_iter,
+        randomize.function = resampleRegions,
+        evaluate.function = mean_score,
+        alternative = "less",
+        universe = gr_universe
+    )
+})
+
+names(perm_dxy) <- comps
+
+plot_perm_dxy <- perm_dxy |>
+    imap(\(x, i) {
+        null_means <- x$mean_score$permuted
+        null_mean <- mean(null_means, na.rm = TRUE)
+        obs_mean <- x$mean_score$observed
+        alpha_line <- qnorm(
+            0.05,
+            mean = null_mean,
+            sd = sd(null_means, na.rm = TRUE)
+        )
+        
+        tibble(nl = null_means) |>
+            ggplot(aes(x = nl)) +
+            geom_histogram(bins = 50, fill = "grey80", colour = "white") +
+            geom_vline(xintercept = null_mean, linetype = "dashed", colour = "black", linewidth = 1) +
+            annotate(
+                "text", x = null_mean, y = Inf, label = "Perm", vjust = 2, hjust = -0.3
+            ) +
+            geom_vline(xintercept = obs_mean, colour = "#394", linewidth = 1) +
+            annotate(
+                "text", x = obs_mean, y = Inf, label = "Obs", colour = "#394", vjust = 2, hjust = -0.3
+            ) +
+            geom_vline(xintercept = alpha_line, colour = "red", linewidth = 1) +
+            annotate(
+                "text", 
+                x = alpha_line, y = Inf, 
+                label = "α = 0.05", 
+                colour = "red", 
+                vjust = 2, hjust = 1.2, 
+            ) +
+            geom_segment(
+                aes(x = null_mean, xend = obs_mean, y = 500, yend = 500),
+                arrow = arrow(length = unit(0.3, "cm"), ends = "both"),
+                color = "black",
+                linewidth = 0.8
+            ) + 
+            scale_y_continuous(expand = c(0.01, 0)) +
+            scale_x_continuous(breaks = scales::breaks_pretty(n = 5)) +
+            labs(
+                x = "Mean *d~XY~*",
+                y = NULL,
+                title = i,
+                subtitle = sprintf(
+                    "Observed = %.2g; α (%.2f) = %.2g; p = %s",
+                    obs_mean, 0.05, alpha_line, format.pval(x$mean_score$pval)
+                )
+            ) +
+            theme(
+                plot.title = element_text(face = "bold", size = 16),
+                plot.subtitle = element_text(size = 14),
+                
+                axis.title.x = element_markdown(size = 16),
+                axis.text = element_text(size = 14)
+            )
+    })
+
+lo <- "
+AAABB
+AAACC
+"
+ragg::agg_png(
+    filename = here(
+        "manuscript",
+        "figures",
+        "supplementary",
+        "supp-figure-X-permutation_dxy.png"
+    ),
+    width = 1400,
+    height = 1000,
+    units = "px",
+    scaling = 1.4
+)
+wrap_plots(list(plot_box_scan_window_dxy, plot_perm_dxy$`HCU-HMA`, plot_perm_dxy$`HCU-HEL`), design = lo) +
+    plot_annotation(tag_levels = "A") +
+    plot_layout(guides = "collect", axes = "collect") &
+    theme(legend.position = "bottom", plot.tag = element_text(face = "bold"))
+invisible(dev.off())
+
+wrap_plots(list(plot_box_scan_window_dxy, plot_perm_dxy$`HCU-HMA`, plot_perm_dxy$`HCU-HEL`), design = lo) +
+    plot_annotation(tag_levels = "A") +
+    plot_layout(guides = "collect", axes = "collect") &
+    theme(legend.position = "bottom", plot.tag = element_text(face = "bold"))
+```
+
+As the correlation plots of nucleotide diversity with F~ST~ and d~XY~ show that
+direction and magnitude of correlation is consistent between species in each
+comparison. 
+
+Consequently, we simply calculate the average nucleotide diversity between pairs
+of species for each outlier windows (π_species_A + π_species_B/2) and perform the
+permutation analysis on these values.
+
+```{r}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 250
+perm_pi <- map(comps, \(x) {
+    spc_str <- str_split_1(x, "-")
+    gr_universe <- df_pi_classified |> 
+        filter(comparison == x) |> 
+        pivot_wider(
+            names_from = pop, 
+            values_from = avg_pi
+        ) |> 
+        mutate(avg_pi = (.data[[spc_str[[1]]]] + .data[[spc_str[[2]]]])/2) |>
+        select(
+            chrom = chromosome,
+            start = window_pos_1,
+            end = window_pos_2,
+            score = avg_pi,
+            comparison, classification
+        ) |>
+        GenomicRanges::makeGRangesFromDataFrame(keep.extra.columns = TRUE)
+    
+    # Observed high-div regions
+    gr_obs <- gr_universe[gr_universe$classification == "High"]
+    
+    perm_out <- permTest(
+        A = gr_obs,
+        ntimes = n_iter,
+        randomize.function = resampleRegions,
+        evaluate.function = mean_score,
+        alternative = "less",
+        universe = gr_universe
+    )
+})
+names(perm_pi) <- comps
+
+plot_perm_pi <- perm_pi |>
+    imap(\(x, i) {
+        null_means <- x$mean_score$permuted
+        null_mean <- mean(null_means, na.rm = TRUE)
+        obs_mean <- x$mean_score$observed
+        alpha_line <- qnorm(
+            0.05,
+            mean = null_mean,
+            sd = sd(null_means, na.rm = TRUE)
+        )
+        
+        tibble(nl = null_means) |>
+            ggplot(aes(x = nl)) +
+            geom_histogram(bins = 50, fill = "grey80", colour = "white") +
+            geom_vline(xintercept = null_mean, linetype = "dashed", colour = "black", linewidth = 1) +
+            annotate(
+                "text", x = null_mean, y = Inf, label = "Perm", vjust = 2, hjust = -0.3
+            ) +
+            geom_vline(xintercept = obs_mean, colour = "#394", linewidth = 1) +
+            annotate(
+                "text", x = obs_mean, y = Inf, label = "Obs", colour = "#394", vjust = 2, hjust = -0.3
+            ) +
+            geom_vline(xintercept = alpha_line, colour = "red", linewidth = 1) +
+            annotate(
+                "text", 
+                x = alpha_line, y = Inf, 
+                label = "α = 0.05", 
+                colour = "red", 
+                vjust = 2, hjust = 1.2, 
+            ) +
+            geom_segment(
+                aes(x = null_mean, xend = obs_mean, y = 1e3, yend = 1e3),
+                arrow = arrow(length = unit(0.3, "cm"), ends = "both"),
+                color = "black",
+                linewidth = 0.8
+            ) + 
+            scale_y_continuous(expand = c(0.01, 0)) +
+            scale_x_continuous(breaks = scales::breaks_pretty(n = 5)) +
+            labs(
+                x = "Mean \U03C0",
+                y = NULL,
+                title = i,
+                subtitle = sprintf(
+                    "Observed = %.2g; α (%.2f) = %.2g; p = %s",
+                    obs_mean, 0.05, alpha_line, format.pval(x$mean_score$pval)
+                )
+            ) +
+            theme(
+                plot.title = element_text(face = "bold", size = 16),
+                plot.subtitle = element_text(size = 14),
+                
+                axis.title.x = element_markdown(size = 16),
+                axis.text = element_text(size = 14)
+            )
+    })
+
+ragg::agg_png(
+    filename = here(
+        "manuscript",
+        "figures",
+        "supplementary",
+        "supp-figure-X-permutation_pi.png"
+    ),
+    width = 1400,
+    height = 1000,
+    units = "px",
+    scaling = 1.4
+)
+wrap_plots(plot_box_scan_window_pi, plot_perm_pi$`HCU-HMA`, plot_perm_pi$`HCU-HEL`, design = lo) +
+    plot_annotation(tag_levels = "A") +
+    plot_layout(guides = "collect", axes = "collect") &
+    theme(legend.position = "bottom", plot.tag = element_text(face = "bold"))
+invisible(dev.off())
+
+wrap_plots(plot_box_scan_window_pi, plot_perm_pi$`HCU-HMA`, plot_perm_pi$`HCU-HEL`, design = lo) +
+    plot_annotation(tag_levels = "A") +
+    plot_layout(guides = "collect", axes = "collect") &
+    theme(legend.position = "bottom", plot.tag = element_text(face = "bold"))
+```
+
+
+## Divergence profiling
+
+Genome scans have illustrated that the divergence landscape is highly similar between
+the three species of *Hydrophis*. Here we use a different approach to classify divergence
+between the three species - divergence profiling.
+
+```{r}
+lvls.profiles <- c(
+    "Allopatric",
+    "Recurrent",
+    "Balancing",
+    "Div. with gene flow",
+    "Background"
+)
+
+df_profiling <- df_data |>
+    mutate(
+        top1_dxy = quantile(avg_dxy, 0.99, na.rm = TRUE),
+        bottom1_dxy = quantile(avg_dxy, 0.01, na.rm = TRUE),
+        top1_fst = quantile(avg_wc_fst, 0.99, na.rm = TRUE),
+        bottom1_fst = quantile(avg_wc_fst, 0.01, na.rm = TRUE),
+        
+        # Classify windows by selection profile
+        profile = case_when(
+            (avg_dxy >= top1_dxy & avg_wc_fst >= top1_fst) ~ "Div. with gene flow",
+            (avg_dxy >= bottom1_dxy &
+                 avg_dxy <= top1_dxy &
+                 avg_wc_fst >= top1_fst) ~ "Allopatric",
+            (avg_dxy <= bottom1_dxy & avg_wc_fst >= top1_fst) ~ "Recurrent",
+            (avg_dxy >= top1_dxy & avg_wc_fst <= bottom1_fst) ~ "Balancing",
+            .default = "Background"
+        ),
+        profile = factor(profile, levels = lvls.profiles),
+        .by = c(comparison)
+    )
+```
+
+First, we show how many windows were classified into each category.
+
+```{r classification-counts}
+# 1. Number of windows classified in each species comparison
+# comp_label                 Background Allopatric Recurrent Balancing `Div. with gene flow`
+# "H. curtus\n-\nH. elegans"      16540        153        15         2                    NA
+# "H. curtus\n-\nH. major"        16536        143        20         3                     5
+# "H. elegans\n-\nH. major"       16582        145        22         1                     1
+df_classified <- df_profiling |>
+    summarise(count = n(), .by = c(comp_label, profile)) |>
+    pivot_wider(names_from = profile, values_from = count)
+
+# 2. Number of windows that could be classified
+# comp_label              total
+# "H. curtus-H. elegans"   170
+# "H. curtus-H. major"     171
+# "H. elegans-H. major"    169
+df_classified_total <- df_profiling |>
+    filter(profile != 'Background') |>
+    summarise(total = n(), .by = comp_label)
+
+left_join(df_classified, df_classified_total) |>
+    gt(rowname_col = "comp_label") |>
+    sub_missing(missing_text = "-") |>
+    as_raw_html()
+```
+
+These totals are represented as a percentage of all classified windows for each
+comparison.
+
+```{r classified-windows-as-pct}
+# 3. Classified windows as a % (relative to total no. classified. NOT to the total number of windows!)
+# Allopatric Recurrent Balancing `Div. with gene flow`
+# comp_label                 Allopatric Recurrent Balancing `Div. with gene flow`
+# "H. curtus\n-\nH. elegans"       90        8.82     1.18                 NA    
+# "H. curtus\n-\nH. major"         83.6     11.7      1.75                  2.92 
+# "H. elegans\n-\nH. major"        85.8     13.0      0.592                 0.592
+left_join(df_classified, df_classified_total) |>
+    reframe(across(.cols = 2:5, .fns = \(x) x / total * 100), .by = comp_label) |>
+    gt(rowname_col = "comp_label") |>
+    fmt_number(n_sigfig = 3) |>
+    sub_missing(missing_text = "-") |>
+    as_raw_html()
+```
+
+Below is the classification scatter plot showing which windows belong to each
+category.
+
+```{r}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 150
+# pal_profiles <- c(
+#     'Allopatric' = '#6CA167FF',
+#     'Recurrent' = '#FED105FF',
+#     'Balancing' = '#145A76FF',
+#     'Div. with gene flow' = '#E27B0CFF'
+# )
+
+# pal_profiles <- c(
+#     'Allopatric' = '#FAB255FF',
+#     'Recurrent' = '#0F7BA2FF',
+#     'Balancing' = '#43B284FF',
+#     'Div. with gene flow' = '#DD5129FF'
+# )
+
+# paletteer::paletteer_d("nbapalettes::pelicans_pride")
+pal_profiles <- c(
+    'Allopatric' = '#729b79',
+    'Recurrent' = '#FDBB30FF',
+    'Balancing' = '#041E42FF',
+    'Div. with gene flow' = '#860038FF'
+)
+
+plot_div_profiling_list <- df_profiling |>
+    ggplot(
+        aes(
+            x = avg_wc_fst,
+            y = avg_dxy,
+            colour = profile
+        )
+    ) +
+    geom_point(show.legend = TRUE) +
+    scale_colour_manual(
+        values = c(pal_profiles, 'Background' = 'grey90'),
+        breaks = lvls.profiles[1:4],
+        drop = FALSE
+    ) +
+    scale_x_continuous(
+        name = "*F~ST~*",
+        breaks = c(0, 0.5, 1),
+        labels = c("0", "0.5", "1"),
+        limits = c(0, 1),
+        expand = c(0, 0)
+    ) +
+    scale_y_continuous(
+        name = "*d~XY~*",
+        # position = "right",
+        limits = c(0, 0.015),
+        breaks = scales::pretty_breaks(n = 5),
+        labels = scales::label_number(drop0trailing = TRUE)
+    ) +
+    geom_hline(
+        aes(yintercept = top1_dxy),
+        linetype = "dashed"
+    ) +
+    geom_hline(aes(yintercept = bottom1_dxy)) +
+    geom_vline(
+        aes(xintercept = top1_fst),
+        linetype = "dashed"
+    ) +
+    geom_vline(aes(xintercept = bottom1_fst)) +
+    guides(
+        colour = guide_legend(
+            title = "Divergence profile",
+            title.position = "top",
+            nrow = 2,
+            override.aes = list(size = 5)
+        )
+    ) +
+    facet_grid(vars(comp_label)) +
+    labs(tag = "C") +
+    theme_linedraw() +
+    theme(
+        axis.text = element_text(size = 14),
+        axis.title.x = element_markdown(size = 16),
+        axis.title.y = element_markdown(size = 16),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.position = "bottom",
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank(),
+        plot.margin = grid::unit(c(0, 0, 0, 0), "mm"),
+        plot.tag = element_text(size = 16, face = "bold", hjust = 0),
+        strip.background = element_blank(),
+        strip.text.y = element_text(
+            colour = "black", 
+            face = "italic", 
+            size = 12
+        ),
+        strip.text.y.left = element_text(angle = 0),
+    )
+plot_div_profiling_list
+```
+
+```{r supp-figure-divergence-profile-genome-scan}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 150
+plot_div <- function(dat, cent, chrom, lb, rb, grp_levels, col_pal, n_breaks) {
+    p_cent <- cent |>
+        filter(
+            chromosome == chrom, 
+            window_pos_1 >= lb,
+            window_pos_2 <= rb
+        ) |>
+        ggplot(
+            aes(
+                x = floor((window_pos_1 + window_pos_2) / 2),
+                y = TR
+            )
+        ) +
+        geom_point(aes(colour = highlight), show.legend = FALSE) +
+        scale_colour_manual(values = c("grey85", "grey70")) +
+        scale_x_continuous(
+            labels = scales::label_number(scale = 1e-6, suffix = "M"),
+            breaks = scales::pretty_breaks(n = n_breaks)
+        ) +
+        scale_y_continuous(
+            breaks = c(0, 25e3, 50e3, 75e3, 100e3),
+            labels = scales::number_format(scale = 1e-3),
+            limits = c(0, 100e3)
+        ) +
+        labs(y = "Tandem repeat\nlength (kbp)") +
+        theme_classic() +
+        theme(
+            axis.title.x = element_blank(),
+            axis.title.y = element_text(size = 16),
+            axis.text = element_text(size = 14),
+            plot.margin = grid::unit(c(0, 0, 5, 0), "mm"),
+            strip.placement = "outside",
+        )
+    
+    p_div <- dat |>
+        filter(
+            chromosome == chrom, 
+            window_pos_1 >= lb, window_pos_2 <= rb
+        ) |>
+        ggplot(
+            aes(
+                x = floor((window_pos_1 + window_pos_2) / 2),
+                y = zfst,
+                colour = profile
+            )
+        ) +
+        geom_point() +
+        geom_hline(
+            yintercept = c(-3, 3),
+            col = "black",
+            linewidth = 0.5,
+            linetype = "dashed",
+            alpha = 0.2
+        ) +
+        labs(
+            x = glue::glue("\nChromosome {chrom}"),
+            y = "*ZF<sub>ST</sub>*"
+        ) +
+        scale_x_continuous(
+            labels = scales::label_number(scale = 1e-6, suffix = "M"),
+            breaks = scales::pretty_breaks(n = n_breaks)
+        ) +
+        scale_y_continuous(
+            # limits = c(-6, 4),
+            breaks = c(-3, 0, 3),
+            labels = c("-3", "0", "3")
+        ) +
+        guides(
+            colour = guide_legend(
+                title = "Window classification",
+                title.position = "top",
+                nrow = 1,
+                override.aes = list(size = 5)
+            )
+        ) +
+        scale_colour_manual(
+            values = c(col_pal, 'Background' = 'grey90'),
+            breaks = grp_levels[1:4]
+        ) +
+        theme_classic() +
+        theme(
+            axis.text = element_text(size = 14),
+            axis.title = element_text(size = 16),
+            axis.title.y = element_markdown(size = 16),
+            
+            legend.position = "bottom",
+            legend.text = element_text(size = 14),
+            legend.title = element_text(size = 16, hjust = 0.5, face = "bold"),
+            
+            # plot.margin = grid::unit(c(0, 0, 0, 0), "mm"),
+            plot.tag = element_text(size = 16, face = "bold")
+        )
+    
+    p_cent / p_div +
+        plot_layout(axes = "collect")
+}
+
+plot_regions <- list(
+    c(1, 205e6, 220e6),
+    c(2, 235e6, 246e6),
+    c(3, 102e6, 140e6),
+    c(4, 100e6, 140e6),
+    c(5, 50e6, 90e6),
+    c(6, 85e6, 100e6)
+)
+
+supp_figure_div <- plot_regions |>
+    map(\(x) {
+        plot_supp_chr1 <- plot_div(
+            df_profiling, 
+            df_centrominer, 
+            chrom = x[1], lb = x[2], rb = x[3], 
+            grp_levels = lvls.profiles, 
+            col_pal = pal_profiles,
+            n_breaks = 5
+        )
+    }) |>
+    wrap_plots(ncol = 2) +
+    plot_layout(guides = "collect") &
+    theme(legend.position = "bottom")
+
+ragg::agg_png(
+    filename = here(
+        "manuscript",
+        "figures",
+        "supplementary",
+        "supp-figure-X-div_profile_allopatric_centromeres.png"
+    ),
+    width = 1000,
+    height = 1400,
+    units = "px",
+    scaling = 1.1
+)
+supp_figure_div
+invisible(dev.off())
+
+supp_figure_div
+```
+
+## Figure 4: Main text
+
+Main text figure 4.
+
+```{r}
+#| fig-width: 8
+#| fig-height: 8
+#| dpi: 250
+# design <- "
+# AAAAAAACC
+# BBBBBBBCC
+# BBBBBBBCC
+# BBBBBBBCC
+# BBBBBBBCC
+# "
+
+design <- "
+AAAAAAABBB
+CCCCCCCDDD
+CCCCCCCDDD
+CCCCCCCDDD
+CCCCCCCDDD
+"
+
+fig_4_partial <- wrap_plots(
+    A = plot_centromeres,
+    B = guide_area(),
+    C = plot_genome_scan,
+    D = plot_div_profiling_list,
+    design = design
+) +
+    plot_layout(design = design, guides = "collect", axes = "collect_x") &
+    theme(
+        legend.position = "bottom",
+        legend.box = "vertical",
+        legend.box.just = "left"
+    )
+
+fig_4_partial
+```
+
+We finish the plot off in another markdown later on.
+
+```{r}
+write_rds(
+    list(
+        "A" = plot_centromeres,
+        "B" = plot_genome_scan,
+        "C" = plot_div_profiling_list
+    ), 
+    file = here("manuscript", "figures", "figure-4-partial.rds")
+)
+```
+
