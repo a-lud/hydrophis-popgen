@@ -1,8 +1,6 @@
 # Genome-wide parallelism in divergence and diversity across three Hydrophis sea snake species
 
-Code, data and figures for the manuscript
-
-> Genome-wide parallelism in divergence and diversity across three Hydrophis sea snake species
+Code, data and figures for the manuscript.
 
 Data processing scripts/pipelines are available in the [scripts][scripts] directory.
 These are the script responsible for sequence data QC, alignment, variant calling
