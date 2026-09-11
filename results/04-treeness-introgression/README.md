@@ -1,6 +1,6 @@
-# Untitled
+# Treeness and introgression
 Alastair Ludington
-2026-09-07
+2026-09-11
 
 - [D-statitics tree](#d-statitics-tree)
 - [Supplementary figure: All combinations of P2 and

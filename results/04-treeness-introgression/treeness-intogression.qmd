@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Treeness and introgression"
 author: "Alastair Ludington"
 date: "`r Sys.Date()`"
 format: 
