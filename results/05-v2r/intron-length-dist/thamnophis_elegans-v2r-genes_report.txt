@@ -1,0 +1,5 @@
+05/23/2025 at 16h18m30s
+usage: /home/a1645424/hpcfs/.pixi/envs/agat/bin/agat_sp_filter_feature_from_keep_list.pl --gff /home/a1645424/al-biohub/sequence-db/gffs/TEL.gff --kl TEL-v2r-gene-ids.txt -o TEL-v2r-genes.gff
+We will keep the records that have all features sharing the value of the ID attribute with the keep list.
+The keep list contains 356 uniq IDs
+356 records kept!

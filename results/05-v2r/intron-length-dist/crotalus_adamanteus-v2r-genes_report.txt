@@ -1,0 +1,5 @@
+05/23/2025 at 16h14m06s
+usage: /home/a1645424/hpcfs/.pixi/envs/agat/bin/agat_sp_filter_feature_from_keep_list.pl --gff /home/a1645424/al-biohub/sequence-db/gffs/CAD.gff --kl CAD-v2r-gene-ids.txt -o CAD-v2r-genes.gff
+We will keep the records that have all features sharing the value of the ID attribute with the keep list.
+The keep list contains 686 uniq IDs
+686 records kept!

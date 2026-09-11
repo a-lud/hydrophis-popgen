@@ -1,0 +1,5 @@
+04/23/2025 at 08h45m46s
+usage: /home/a1645424/hpcfs/.pixi/envs/agat/bin/agat_sp_filter_feature_from_keep_list.pl --gff /home/a1645424/al-biohub/sequence-db/gffs/notechis_scutatus.gff3 --kl /home/a1645424/hpcfs/analysis/popgen/results/v2r/intron-length-dist/notechis_scutatus-v2r-gene-ids.txt -o /home/a1645424/hpcfs/analysis/popgen/results/v2r/intron-length-dist/notechis_scutatus-v2r-genes.gff3
+We will keep the records that have all features sharing the value of the ID attribute with the keep list.
+The keep list contains 215 uniq IDs
+215 records kept!
