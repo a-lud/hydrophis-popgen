@@ -3,7 +3,7 @@ Alastair Ludington
 2026-10-02
 
 - [D-statitics tree](#d-statitics-tree)
-- [F<sub>ST</sub>/d<sub>XY</sub> vs ƒ<sub>d</sub>](#fstdxy-vs-ƒd)
+- [d<sub>XY</sub> vs ƒ<sub>d</sub>](#dxy-vs-ƒd)
 - [Challeneges of ƒ<sub>d</sub>](#challeneges-of-ƒd)
   - [Comparing d<sub>XY</sub> in outlier ƒ<sub>d</sub> windows to
     non-outlier
@@ -21,11 +21,9 @@ equally frequently (reflecting ILS and the like).
 
 ƒ<sub>d</sub> statistics are a variant of D-statistics, suitable for use
 with windowed data. Here, we explore ƒ<sub>d</sub> results relative to
-F<sub>ST</sub> and see what the relationship is. The expectation is that
+d<sub>XY</sub> and see what the relationship is. The expectation is that
 introgression would result in high ƒ<sub>d</sub> within a window and low
-F<sub>ST</sub>. We’ll also compare ƒ<sub>d</sub> to d<sub>XY</sub>, as
-low d<sub>XY</sub> is known to artificially inflate the statistic (see
-Simon Martin’s ƒ<sub>d</sub> 2015 MBE paper).
+d<sub>XY</sub>.
 
 Data for this analysis were not only filtered on the 10% usable data
 that we use in the diversity statistics, but also ensuring there are
@@ -125,12 +123,11 @@ plot_tree_astral
 src="treeness-intogression_files/figure-commonmark/unnamed-chunk-1-1.png"
 style="width:100.0%" />
 
-## F<sub>ST</sub>/d<sub>XY</sub> vs ƒ<sub>d</sub>
+## d<sub>XY</sub> vs ƒ<sub>d</sub>
 
 If there is gene flow between the P3 and P2, we’d expect divergence
 statistics to be low in the windows where introgression is high. Below
-we plot d<sub>XY</sub> against ƒ<sub>d</sub>, coloured by F<sub>ST</sub>
-to explore this.
+we plot d<sub>XY</sub> against ƒ<sub>d</sub>.
 
 Specifically, we’re plotting the divergence statistics between *H.
 curtus* (P2) and *H. elegans* (P3) against the ƒ<sub>d</sub> results for

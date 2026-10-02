@@ -49,10 +49,9 @@ there were no introgression, we'd expect ABBA and BABA patterns to occur equally
 frequently (reflecting ILS and the like).
 
 ƒ~d~ statistics are a variant of D-statistics, suitable for use with windowed
-data. Here, we explore ƒ~d~ results relative to F~ST~ and see what the
+data. Here, we explore ƒ~d~ results relative to d~XY~ and see what the
 relationship is. The expectation is that introgression would result in high ƒ~d~
-within a window and low F~ST~. We'll also compare ƒ~d~ to d~XY~, as low d~XY~ is
-known to artificially inflate the statistic (see Simon Martin's ƒ~d~ 2015 MBE paper).
+within a window and low d~XY~.
 
 Data for this analysis were not only filtered on the 10\% usable data that
 we use in the diversity statistics, but also ensuring there are adequate SNPs
