@@ -148,11 +148,11 @@ plot_tree_astral
 ```
 
 
-## F~ST~/d~XY~ vs ƒ~d~
+## d~XY~ vs ƒ~d~
 
 If there is gene flow between the P3 and P2, we'd expect divergence statistics to
 be low in the windows where introgression is high. Below we plot d~XY~ against
-ƒ~d~, coloured by F~ST~ to explore this.
+ƒ~d~.
 
 Specifically, we're plotting the divergence statistics between *H. curtus* (P2)
 and *H. elegans* (P3) against the ƒ~d~ results for the matching topology.
