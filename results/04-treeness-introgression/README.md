@@ -27,7 +27,7 @@ d<sub>XY</sub>.
 
 Data for this analysis were not only filtered on the 10% usable data
 that we use in the diversity statistics, but also ensuring there are
-adequate SNPs in the window (\$\$200) to accurately estimate the
+adequate SNPs in the window ($\geq$ 200) to accurately estimate the
 statistics. We’ve also applied the chromosome 2 mask to this data to
 minimise the impact of the misassembly in that region.
 
