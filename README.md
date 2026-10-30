@@ -21,9 +21,9 @@ and supplementary figures/tables come from these documents.
 The additional directory [00-other][00-other] simply has additional data files
 that are used in the scripts above.
 
-Please cite the paper if you find this directory helpful/use any of the code
+Please cite the preprint if you find this directory helpful/use any of the code
 
-> TBD
+> Genome-wide parallelism in divergence and diversity across three Hydrophis sea snake species, Alastair J. Ludington, Kate L. Sanders, bioRxiv 2026.10.06.756852; doi: https://doi.org/10.64898/2026.10.06.756852
 
 [scripts]: https://github.com/a-lud/hydrophis-popgen/tree/main/scripts
 [results]: https://github.com/a-lud/hydrophis-popgen/tree/main/results
